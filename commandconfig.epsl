@@ -42,7 +42,7 @@ BoolConfigValue {
 
 @extends ConfigValue;
 DoubleConfigValue {
-    Q:val
+    R:val
 }
 
 @extends ConfigValue;
@@ -279,7 +279,7 @@ Bool#[ConfigChain:chain].get_bool[Str:name] {
     };
 }
 
-Q#[ConfigChain:chain].get_double[Str:name] {
+R#[ConfigChain:chain].get_double[Str:name] {
     given [chain].get_first[name] as DoubleConfigValue:double_val {
         return double_val.val;
     } else {
