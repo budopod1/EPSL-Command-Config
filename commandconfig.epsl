@@ -1,0 +1,716 @@
+$import proc;
+$import json;
+
+ConfigProps {
+    [:ConfigProp]:props
+}
+
+@super;
+ConfigProp {
+    Str:name
+}
+
+@extends ConfigProp;
+BoolProp {}
+
+@extends ConfigProp;
+DoubleProp {}
+
+@extends ConfigProp;
+EnumProp {
+    [Str]:members
+}
+
+@extends ConfigProp;
+IntProp {}
+
+@extends ConfigProp;
+StringProp {}
+
+@extends ConfigProp;
+StringsProp {}
+
+@super;
+ConfigValue {
+    Str:prop_name
+}
+
+@extends ConfigValue;
+BoolConfigValue {
+    Bool:val
+}
+
+@extends ConfigValue;
+DoubleConfigValue {
+    Q:val
+}
+
+@extends ConfigValue;
+EnumConfigValue {
+    Str:val
+}
+
+@extends ConfigValue;
+IntConfigValue {
+    Z:val
+}
+
+@extends ConfigValue;
+StringConfigValue {
+    Str:val
+}
+
+@extends ConfigValue;
+StringsConfigValue {
+    [Str]:val
+}
+
+ConfigValues {
+    [:ConfigValue]:values
+}
+
+ConfigChain {
+    [ConfigValues]:links
+}
+
+JSONConfigResult {
+    ConfigValues?:values,
+    JSONParsingError?:error
+}
+
+@super;
+CmdComponentAction {}
+
+@extends CmdComponentAction;
+CmdApplyConstant {
+    :ConfigValue:value
+}
+
+@extends CmdComponentAction;
+CmdShowHelp {}
+
+@super;
+@extends CmdComponentAction;
+CmdInputSource {
+    Str:prop_name
+}
+
+@extends CmdInputSource;
+IntInputSource {}
+
+@extends CmdInputSource;
+MultiStringInputSource {
+    Str?:terminator
+}
+
+@extends CmdInputSource;
+StringInputSource {}
+
+PositionalArg {
+    :CmdInputSource:source,
+    Bool:is_optional,
+    Str:help
+}
+
+FlagArg {
+    [Str]:names,
+    :CmdComponentAction:action,
+    Str:help
+}
+
+ArgumentBranch {
+    Str:name,
+    [ArgumentBranch]:subbranches,
+    [PositionalArg]:positionals,
+    [FlagArg]:flags,
+    Str?:help
+}
+
+HelpTextStyle {
+    W:command_indent,
+    W:command_align_pad,
+    W:flag_indent,
+    W:flag_align_pad,
+    W:positional_indent,
+    W:positional_align_pad
+}
+
+CommandSpec {
+    ConfigProps:config,
+    Str:program_name,
+    Str?:description,
+    Str?:help_footer,
+    ArgumentBranch:root_branch,
+    HelpTextStyle:help_style
+}
+
+CommandParsingResult {
+    ConfigValues:values,
+    [Str]:branch_path
+}
+
+:JSONShape#[:ConfigProp:prop].get_shape {
+    given prop as BoolProp:bool_prop {
+        return JSONBoolShape [];
+    } given prop as DoubleProp:double_prop {
+        return JSONDoubleShape [];
+    } given prop as EnumProp:enum_prop {
+        return JSONStrOptionsShape [enum_prop.members];
+    } given prop as IntProp:int_prop {
+        return JSONIntShape [];
+    } given prop as StringProp:string_prop {
+        return JSONStrShape [];
+    } given prop as StringsProp:strings_prop {
+        return JSONListShape [JSONStrShape []];
+    } else {
+        abort "Invalid config prop";
+    };
+}
+
+:JSONShape#[ConfigProps:config].get_shape {
+    [Str]:keys = [Str] [];
+    [:JSONShape]:value_shapes = [:JSONShape] [];
+    for :ConfigProp:prop in config.props {
+        [keys].append[prop.name];
+        [value_shapes].append[[prop].get_shape];
+    };
+    return JSONAnyKeysShape [keys, value_shapes];
+}
+
+:ConfigProp#[ConfigProps:config].get_prop[Str:name] {
+    for :ConfigProp:prop in config.props {
+        if [prop.name] equals [name] {
+            return prop;
+        };
+    };
+    abort "No prop found with the name {}" % name;
+}
+
+#[ConfigValues:values].add[:ConfigValue:value] {
+    [values.values].append[value];
+}
+
+:ConfigValue#[:ConfigProp:prop].from_json[:JSON:json] {
+    given prop as BoolProp:bool_prop {
+        return BoolConfigValue [prop.name, [json].get_bool];
+    } given prop as DoubleProp:double_prop {
+        return DoubleConfigValue [prop.name, [json].get_double];
+    } given prop as EnumProp:enum_prop {
+        return EnumConfigValue [prop.name, [json].get_str];
+    } given prop as IntProp:int_prop {
+        return IntConfigValue [prop.name, [json].get_int];
+    } given prop as StringProp:string_prop {
+        return StringConfigValue [prop.name, [json].get_str];
+    } given prop as StringsProp:strings_prop {
+        [Str]:strs = [Str] [];
+        for :JSON:item in [json].get_list {
+            [strs].append[[item].get_str];
+        };
+        return StringsConfigValue [prop.name, strs];
+    } else {
+        abort "Invalid config prop";
+    };
+}
+
+JSONConfigResult#[ConfigProps:config].from_json[:JSON:json] {
+    :JSONShape:shape = [config].get_shape;
+    given check [json] against [shape] as JSONParsingError:error {
+        return JSONConfigResult [null, error];
+    };
+    ConfigValues:values = ConfigValues [[:ConfigValue] []];
+    JSONObj:obj = [json].get_obj;
+    for L:i enumerating obj.keys {
+        :ConfigProp:prop = [config].get_prop[obj.keys[i]];
+        [values].add[[prop].from_json[obj.values[i]]];
+    };
+    return JSONConfigResult [values, null];
+}
+
+JSONConfigResult#[ConfigProps:config].from_json[Str:txt_json] {
+    JSONParsingResult:parse_result = parse_txt_JSON[txt_json];
+    given parse_result.json as :JSON:json {
+        return [config].from_json[json];
+    } else {
+        return JSONConfigResult [null, parse_result.error];
+    };
+}
+
+:ConfigValue?#[ConfigValues:values].get[Str:name] {
+    for :ConfigValue:value in values.values {
+        if [value.prop_name] equals [name] {
+            return value;
+        };
+    };
+    return null;
+}
+
+:ConfigValue?#[ConfigChain:chain].try_get[Str:name] {
+    for ConfigValues:values in chain.links {
+        given [values].get[name] as :ConfigValue:value {
+            return value;
+        };
+    };
+    return null;
+}
+
+:ConfigValue#[ConfigChain:chain].get_first[Str:name] {
+    given [chain].try_get[name] as :ConfigValue:value {
+        return value;
+    } else {
+        abort "No value referring to the prop '{}' was found" % name;
+    };
+}
+
+[:ConfigValue]#[ConfigChain:chain].get_all[Str:name] {
+    [:ConfigValue]:collected = [:ConfigValue] [];
+    for ConfigValues:values in chain.links {
+        given [values].get[name] as :ConfigValue:value {
+            [collected].append[value];
+        };
+    };
+    return collected;
+}
+
+Bool#[ConfigChain:chain].get_bool[Str:name] {
+    given [chain].get_first[name] as BoolConfigValue:bool_val {
+        return bool_val.val;
+    } else {
+        abort "'{}' does not refer to a bool prop" % name;
+    };
+}
+
+Q#[ConfigChain:chain].get_double[Str:name] {
+    given [chain].get_first[name] as DoubleConfigValue:double_val {
+        return double_val.val;
+    } else {
+        abort "'{}' does not refer to a double prop" % name;
+    };
+}
+
+Str#[ConfigChain:chain].get_enum[Str:name] {
+    given [chain].get_first[name] as EnumConfigValue:enum_val {
+        return enum_val.val;
+    } else {
+        abort "'{}' does not refer to a enum prop" % name;
+    };
+}
+
+Z#[ConfigChain:chain].get_int[Str:name] {
+    given [chain].get_first[name] as IntConfigValue:int_val {
+        return int_val.val;
+    } else {
+        abort "'{}' does not refer to a int prop" % name;
+    };
+}
+
+Str#[ConfigChain:chain].get_string[Str:name] {
+    given [chain].get_first[name] as StringConfigValue:string_val {
+        return string_val.val;
+    } else {
+        abort "'{}' does not refer to a string prop" % name;
+    };
+}
+
+[Str]#[ConfigChain:chain].get_strings[Str:name] {
+    [Str]:result = [Str] [];
+    for :ConfigValue:value in [chain].get_all[name] {
+        given value as StringsConfigValue:strings_val {
+            [result].extend[strings_val.val];
+        } else {
+            abort "'{}' refers to a non-strings prop" % name;
+        };
+    };
+    return result;
+}
+
+HelpTextStyle#default help style {
+    return HelpTextStyle [4, 13, 2, 25, 2, 13];
+}
+
+ArgumentBranch#make root branch {
+    return ArgumentBranch [
+        "", [ArgumentBranch] [], [PositionalArg] [], [FlagArg] [], null
+    ];
+}
+
+ArgumentBranch#[ArgumentBranch:parent].add_branch[Str:name] {
+    ArgumentBranch:child = ArgumentBranch [
+        name, [ArgumentBranch] [], [PositionalArg] [], [FlagArg] [], null
+    ];
+    [parent.subbranches].append[child];
+    return child;
+}
+
+#[ArgumentBranch:branch].flag[[Str]:names] [:CmdComponentAction:action] help: [Str:help] {
+    [branch.flags].append[FlagArg [names, action, help]];
+}
+
+#[ArgumentBranch:branch].positional[:CmdInputSource:input_src] optional: [Bool:is_optional] help: [Str:help] {
+    [branch.positionals].append[PositionalArg [input_src, is_optional, help]];
+}
+
+ArgumentBranch?#[ArgumentBranch:parent].get_branch[Str:name] {
+    for ArgumentBranch:child in parent.subbranches {
+        if [child.name] equals [name] {
+            return child;
+        };
+    };
+    return null;
+}
+
+FlagArg?#[[FlagArg]:flags].get_flag[Str:name] {
+    for FlagArg:flag in flags {
+        for Str:flag_name in flag.names {
+            if [flag_name] equals [name] {
+                return flag;
+            };
+        };
+    };
+    return null;
+}
+
+Str#[:CmdInputSource:src].get_usage spec: [CommandSpec:spec] {
+    :ConfigProp:prop = [spec.config].get_prop[src.prop_name];
+    given src as IntInputSource:int_src {
+        return "<{}>" % int_src.prop_name;
+    } given src as MultiStringInputSource:multi_str_src {
+        Str:usage = ["<{}>..." % multi_str_src.prop_name].clone;
+        given multi_str_src.terminator as Str:terminator {
+            [usage].append[' '];
+            [usage].extend[terminator];
+        };
+        return usage;
+    } given src as StringInputSource:str_src {
+        given prop as EnumProp:enum_prop {
+            return [enum_prop.members].join["|"];
+        } else {
+            return "<{}>" % str_src.prop_name;
+        };
+    } else {
+        abort "Invalid CmdInputSource";
+    };
+}
+
+Str#[PositionalArg:positional].get_usage spec: [CommandSpec:spec] {
+    Str:result = [positional.source].get_usage spec: [spec];
+    if positional.is_optional {
+        return "[{}]" % result;
+    } else {
+        return result;
+    };
+}
+
+Str#[:CmdComponentAction:action].get_usage spec: [CommandSpec:spec] {
+    given action as :CmdInputSource:src {
+        return [src].get_usage spec: [spec];
+    } else {
+        return "";
+    };
+}
+
+Str#[FlagArg:flag].get_usage spec: [CommandSpec:spec] {
+    Str:result = Str [];
+    for Str:name in flag.names {
+        if result {
+            [result].extend[", "];
+        };
+        [result].append['-'];
+        if [name].len > 1 {
+            [result].append['-'];
+        };
+        [result].extend[name];
+    };
+    Str:action_usage = [flag.action].get_usage spec: [spec];
+    if action_usage {
+        [result].append[' '];
+        [result].extend[action_usage];
+    };
+    return result;
+}
+
+Str#[ArgumentBranch:branch].get_usage spec: [CommandSpec:spec] {
+    Str:result = Str [' '];
+    [result].extend[branch.name];
+    for PositionalArg:positional in branch.positionals {
+        [result].append[' '];
+        [result].extend[[positional].get_usage spec: [spec]];
+    };
+    return result;
+}
+
+Str#[CommandSpec:spec].get_help_output branch: [[Str]:branch_path] {
+    Str:result = Str [];
+
+    ArgumentBranch:branch = spec.root_branch;
+    [FlagArg]:flags = [branch.flags].clone;
+    [PositionalArg]:positionals = [branch.positionals].clone;
+    Str:branches_usage = Str [];
+    for Str:branch_name in branch_path {
+        given [branch].get_branch[branch_name] as ArgumentBranch:sub {
+            branch = sub;
+            [flags].extend[branch.flags];
+            [positionals].extend[branch.positionals];
+            [branches_usage].extend[[branch].get_usage spec: [spec]];
+        } else {
+            abort "No branch named '{}' found" % branch_name;
+        };
+    };
+
+    given branch.help as Str:help {
+        [result].extend[help];
+        [result].extend["\n\n"];
+    } given spec.description as Str:description {
+        [result].extend[description];
+        [result].extend["\n\n"];
+    };
+
+    [result].extend["usage: "];
+    [result].extend[spec.program_name];
+    [result].extend[branches_usage];
+    if branch.subbranches {
+        [result].extend[" <command>"];
+    };
+    [result].extend[" [options]\n"];
+
+    if positionals {
+        [result].extend["\narguments:\n"];
+        for PositionalArg:positional in positionals {
+            [result].extend[[" "].repeat[spec.help_style.positional_indent]];
+            Str:usage = [positional].get_usage spec: [spec];
+            if [usage].len > spec.help_style.positional_align_pad {
+                [result].extend[usage];
+                [result].append['\n'];
+                W:total_indent = spec.help_style.positional_indent
+                    + spec.help_style.positional_align_pad + 1;
+                [result].extend[[" "].repeat[total_indent]];
+            } else {
+                usage = [usage].clone;
+                [usage].right_pad[spec.help_style.positional_align_pad + 1][' '];
+                [result].extend[usage];
+            };
+            [result].extend[positional.help];
+            [result].append['\n'];
+        };
+    };
+
+    if flags {
+        [result].extend["\noptions:\n"];
+        for FlagArg:flag in flags {
+            [result].extend[[" "].repeat[spec.help_style.flag_indent]];
+            Str:usage = [flag].get_usage spec: [spec];
+            if [usage].len > spec.help_style.flag_align_pad {
+                [result].extend[usage];
+                [result].append['\n'];
+                W:total_indent = spec.help_style.flag_indent
+                    + spec.help_style.flag_align_pad + 1;
+                [result].extend[[" "].repeat[total_indent]];
+            } else {
+                usage = [usage].clone;
+                [usage].right_pad[spec.help_style.flag_align_pad + 1][' '];
+                [result].extend[usage];
+            };
+            [result].extend[flag.help];
+            [result].append['\n'];
+        };
+    };
+
+    if branch.subbranches {
+        [result].extend["\ncommands:\n"];
+        for ArgumentBranch:sub in branch.subbranches {
+            [result].extend[[" "].repeat[spec.help_style.command_indent]];
+            Str:sub_name = [sub.name].clone;
+            [sub_name].right_pad[spec.help_style.command_align_pad + 1][' '];
+            [result].extend[sub_name];
+            [result].extend[[sub.help] || [""]];
+            [result].append['\n'];
+        };
+    };
+
+    given spec.help_footer as Str:help_footer {
+        [result].append['\n'];
+        [result].extend[help_footer];
+        [result].append['\n'];
+    };
+
+    return result;
+}
+
+#[CommandSpec:spec].error_and_exit[Str:error] {
+    println["{}: {}" % spec.program_name % error];
+    for FlagArg:flag in spec.root_branch.flags {
+        given flag.action as CmdShowHelp:help_action {
+            Str:between = "";
+            if spec.root_branch.subbranches {
+                between = " <command>";
+            };
+            Str:flag_name = flag.names[0];
+            Str:flag_prefix = "-";
+            if [flag_name].len > 1 {
+                flag_prefix = "--";
+            };
+            println["use '{}{} {}{}' to view usage"
+                % spec.program_name % between % flag_prefix % flag_name];
+        };
+    };
+    exit with status [1];
+}
+
+#[CommandSpec:spec].show_help_and_exit branch: [[Str]:branch_path] {
+    print[[spec].get_help_output branch: [branch_path]];
+    exit with status [0];
+}
+
+:ConfigValue#[:CmdInputSource:src].from_args[[Str]:args_stack] spec: [CommandSpec:spec] {
+    if !args_stack {
+        [spec].error_and_exit["Not enough arguments, expected {}"
+            % [src].get_usage spec: [spec]];
+    };
+    given src as IntInputSource:int_src {
+        Str:str = [args_stack].pop_end;
+        given parse_int[str] as Z:val {
+            return IntConfigValue [src.prop_name, val];
+        } else {
+            [spec].error_and_exit["Expected an integer, got '{}'" % str];
+            abort;
+        };
+    } given src as MultiStringInputSource:multi_str_src {
+        given multi_str_src.terminator as Str:terminator {
+            [Str]:result = [Str] [];
+            while args_stack {
+                Str:nxt = [args_stack].pop_end;
+                if [nxt] not equals [terminator] {
+                    return StringsConfigValue [src.prop_name, result];
+                };
+                [result].append[nxt];
+            };
+            [spec].error_and_exit["Expected terminator {}" % terminator];
+            abort;
+        } else {
+            [Str]:result = [Str] [];
+            while args_stack && ![args_stack[0]].starts_with["-"] {
+                [result].append[[args_stack].pop_end];
+            };
+            return StringsConfigValue [src.prop_name, result];
+        };
+    } given src as StringInputSource:str_src {
+        :ConfigProp:prop = [spec.config].get_prop[src.prop_name];
+        Str:str = [args_stack].pop_end;
+        given prop as EnumProp:enum_prop {
+            for Str:member in enum_prop.members {
+                if [member] equals [str] {
+                    return StringConfigValue [src.prop_name, str];
+                };
+            };
+            [spec].error_and_exit["'{}' is not a member of the enum" % str];
+            abort;
+        } given prop as StringProp:string_prop {
+            return StringConfigValue [src.prop_name, str];
+        } given prop as StringsProp:strings_prop {
+            return StringsConfigValue [src.prop_name, [Str] [str]];
+        } else {
+            abort "Incorrect type of prop for StringInputSource";
+        };
+    } else {
+        abort "Invalid CmdInputSource";
+    };
+}
+
+:ConfigValue?#[:CmdComponentAction:action].from_args[[Str]:args_stack] spec: [CommandSpec:spec] branch: [[Str]:branch_path] {
+    given action as :CmdInputSource:src {
+        return [src].from_args[args_stack] spec: [spec];
+    } given action as CmdApplyConstant:apply_constant {
+        return apply_constant.value;
+    } given action as CmdShowHelp:show_help {
+        [spec].show_help_and_exit branch: [branch_path];
+        abort;
+    } else {
+        abort "Invalid CmdComponentAction";
+    };
+}
+
+CommandParsingResult#[CommandSpec:spec].parse_command_args[[Str]:args] {
+    ConfigValues:values = ConfigValues [[:ConfigValue] []];
+
+    [Str]:args_stack = [Str] [];
+    for Str:arg in args from 1 step -1 {
+        [args_stack].append[arg];
+    };
+
+    [Str]:branch_path = [Str] [];
+    ArgumentBranch:branch = spec.root_branch;
+    [FlagArg]:active_flags = [branch.flags].clone;
+    Bool:accepting_flags = true;
+
+    [PositionalArg]:positionals = [branch.positionals].clone;
+    W:positional_index = 0;
+
+    while args_stack {
+        Str:arg = [args_stack].pop_end;
+        if !arg {
+            continue;
+        };
+        if arg[0] == '-' && [arg].len > 1 && accepting_flags {
+            if [arg] equals ["--"] {
+                accepting_flags = false;
+                continue;
+            };
+            [Str]:named_flags = [Str] [];
+            if arg[1] == '-' {
+                named_flags = [Str] [[arg].slice_from[2]];
+            } else {
+                for Byte:flag_name in arg from 1 {
+                    [named_flags].append[Str [flag_name]];
+                };
+            };
+            for Str:flag_name in named_flags {
+                given [active_flags].get_flag[flag_name] as FlagArg:flag {
+                    :ConfigValue?:maybe_value = [flag.action].from_args[args_stack]
+                        spec: [spec] branch: [branch_path];    
+                    given maybe_value as :ConfigValue:value {
+                        [values].add[value];
+                    };
+                } else {
+                    [spec].error_and_exit["Unrecognized option: '{}'"
+                        % flag_name];
+                };
+            };
+        } elif positional_index < [positionals].len {
+            PositionalArg:positional = positionals[positional_index++];
+            [args_stack].append[arg];
+            [values].add[[positional.source].from_args[args_stack]
+                spec: [spec]];
+        } elif branch.subbranches {
+            given [branch].get_branch[arg] as ArgumentBranch:sub {
+                [branch_path].append[arg];
+                branch = sub;
+                [active_flags].extend[branch.flags];
+                positionals = branch.positionals;
+                positional_index = 0;
+            } else {
+                [spec].error_and_exit["'{}' is not a valid command" % arg];
+            };
+        } else {
+            [spec].error_and_exit["Too many arguments, unexpected argument {}"
+                % arg];
+        };
+    };
+
+    if branch.subbranches {
+        [spec].show_help_and_exit branch: [branch_path];
+    };
+
+    while positional_index < [positionals].len {
+        PositionalArg:missing_positional = positionals[positional_index++];
+        if missing_positional.is_optional {
+            continue;
+        };
+        [spec].error_and_exit["Not enough arguments, expected {}"
+            % [missing_positional].get_usage spec: [spec]];
+    };
+
+    return CommandParsingResult [values, branch_path];
+}
+
+CommandParsingResult#[CommandSpec:spec].parse_command_args {
+    return [spec].parse_command_args[get argv];
+}

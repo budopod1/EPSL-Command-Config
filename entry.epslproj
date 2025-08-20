@@ -1,0 +1,6 @@
+{
+    "file": "commandconfig",
+    "output-type": "package-both",
+    "cache-mode": "always",
+    "packages": ["json"]
+}
