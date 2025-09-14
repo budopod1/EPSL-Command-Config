@@ -2,7 +2,7 @@ $import proc;
 $import json;
 
 ConfigProps {
-    [:ConfigProp]:props
+    [%ConfigProp]:props
 }
 
 @super;
@@ -66,7 +66,7 @@ StringsConfigValue {
 }
 
 ConfigValues {
-    [:ConfigValue]:values
+    [%ConfigValue]:values
 }
 
 ConfigChain {
@@ -83,7 +83,7 @@ CmdComponentAction {}
 
 @extends CmdComponentAction;
 CmdApplyConstant {
-    :ConfigValue:value
+    %ConfigValue:value
 }
 
 @extends CmdComponentAction;
@@ -107,14 +107,14 @@ MultiStringInputSource {
 StringInputSource {}
 
 PositionalArg {
-    :CmdInputSource:source,
+    %CmdInputSource:source,
     Bool:is_optional,
     Str:help
 }
 
 FlagArg {
     [Str]:names,
-    :CmdComponentAction:action,
+    %CmdComponentAction:action,
     Str:help
 }
 
@@ -149,7 +149,7 @@ CommandParsingResult {
     [Str]:branch_path
 }
 
-:JSONShape#[:ConfigProp:prop].get_shape {
+%JSONShape#[%ConfigProp:prop].get_shape {
     given prop as BoolProp:bool_prop {
         return JSONBoolShape [];
     } given prop as DoubleProp:double_prop {
@@ -167,18 +167,18 @@ CommandParsingResult {
     };
 }
 
-:JSONShape#[ConfigProps:config].get_shape {
+%JSONShape#[ConfigProps:config].get_shape {
     [Str]:keys = [Str] [];
-    [:JSONShape]:value_shapes = [:JSONShape] [];
-    for :ConfigProp:prop in config.props {
+    [%JSONShape]:value_shapes = [%JSONShape] [];
+    for %ConfigProp:prop in config.props {
         [keys].append[prop.name];
         [value_shapes].append[[prop].get_shape];
     };
     return JSONAnyKeysShape [keys, value_shapes];
 }
 
-:ConfigProp#[ConfigProps:config].get_prop[Str:name] {
-    for :ConfigProp:prop in config.props {
+%ConfigProp#[ConfigProps:config].get_prop[Str:name] {
+    for %ConfigProp:prop in config.props {
         if [prop.name] equals [name] {
             return prop;
         };
@@ -186,11 +186,11 @@ CommandParsingResult {
     abort "No prop found with the name {}" % name;
 }
 
-#[ConfigValues:values].add[:ConfigValue:value] {
+#[ConfigValues:values].add[%ConfigValue:value] {
     [values.values].append[value];
 }
 
-:ConfigValue#[:ConfigProp:prop].from_json[:JSON:json] {
+%ConfigValue#[%ConfigProp:prop].from_json[%JSON:json] {
     given prop as BoolProp:bool_prop {
         return BoolConfigValue [prop.name, [json].get_bool];
     } given prop as DoubleProp:double_prop {
@@ -203,7 +203,7 @@ CommandParsingResult {
         return StringConfigValue [prop.name, [json].get_str];
     } given prop as StringsProp:strings_prop {
         [Str]:strs = [Str] [];
-        for :JSON:item in [json].get_list {
+        for %JSON:item in [json].get_list {
             [strs].append[[item].get_str];
         };
         return StringsConfigValue [prop.name, strs];
@@ -212,15 +212,15 @@ CommandParsingResult {
     };
 }
 
-JSONConfigResult#[ConfigProps:config].from_json[:JSON:json] {
-    :JSONShape:shape = [config].get_shape;
+JSONConfigResult#[ConfigProps:config].from_json[%JSON:json] {
+    %JSONShape:shape = [config].get_shape;
     given check [json] against [shape] as JSONParsingError:error {
         return JSONConfigResult [null, error];
     };
-    ConfigValues:values = ConfigValues [[:ConfigValue] []];
+    ConfigValues:values = ConfigValues [[%ConfigValue] []];
     JSONObj:obj = [json].get_obj;
     for L:i enumerating obj.keys {
-        :ConfigProp:prop = [config].get_prop[obj.keys[i]];
+        %ConfigProp:prop = [config].get_prop[obj.keys[i]];
         [values].add[[prop].from_json[obj.values[i]]];
     };
     return JSONConfigResult [values, null];
@@ -228,15 +228,15 @@ JSONConfigResult#[ConfigProps:config].from_json[:JSON:json] {
 
 JSONConfigResult#[ConfigProps:config].from_json[Str:txt_json] {
     JSONParsingResult:parse_result = parse_txt_JSON[txt_json];
-    given parse_result.json as :JSON:json {
+    given parse_result.json as %JSON:json {
         return [config].from_json[json];
     } else {
         return JSONConfigResult [null, parse_result.error];
     };
 }
 
-:ConfigValue?#[ConfigValues:values].get[Str:name] {
-    for :ConfigValue:value in values.values {
+%ConfigValue?#[ConfigValues:values].get[Str:name] {
+    for %ConfigValue:value in values.values {
         if [value.prop_name] equals [name] {
             return value;
         };
@@ -244,27 +244,27 @@ JSONConfigResult#[ConfigProps:config].from_json[Str:txt_json] {
     return null;
 }
 
-:ConfigValue?#[ConfigChain:chain].try_get[Str:name] {
+%ConfigValue?#[ConfigChain:chain].try_get[Str:name] {
     for ConfigValues:values in chain.links {
-        given [values].get[name] as :ConfigValue:value {
+        given [values].get[name] as %ConfigValue:value {
             return value;
         };
     };
     return null;
 }
 
-:ConfigValue#[ConfigChain:chain].get_first[Str:name] {
-    given [chain].try_get[name] as :ConfigValue:value {
+%ConfigValue#[ConfigChain:chain].get_first[Str:name] {
+    given [chain].try_get[name] as %ConfigValue:value {
         return value;
     } else {
         abort "No value referring to the prop '{}' was found" % name;
     };
 }
 
-[:ConfigValue]#[ConfigChain:chain].get_all[Str:name] {
-    [:ConfigValue]:collected = [:ConfigValue] [];
+[%ConfigValue]#[ConfigChain:chain].get_all[Str:name] {
+    [%ConfigValue]:collected = [%ConfigValue] [];
     for ConfigValues:values in chain.links {
-        given [values].get[name] as :ConfigValue:value {
+        given [values].get[name] as %ConfigValue:value {
             [collected].append[value];
         };
     };
@@ -313,7 +313,7 @@ Str#[ConfigChain:chain].get_string[Str:name] {
 
 [Str]#[ConfigChain:chain].get_strings[Str:name] {
     [Str]:result = [Str] [];
-    for :ConfigValue:value in [chain].get_all[name] {
+    for %ConfigValue:value in [chain].get_all[name] {
         given value as StringsConfigValue:strings_val {
             [result].extend[strings_val.val];
         } else {
@@ -341,11 +341,11 @@ ArgumentBranch#[ArgumentBranch:parent].add_branch[Str:name] {
     return child;
 }
 
-#[ArgumentBranch:branch].flag[[Str]:names] [:CmdComponentAction:action] help: [Str:help] {
+#[ArgumentBranch:branch].flag[[Str]:names] [%CmdComponentAction:action] help: [Str:help] {
     [branch.flags].append[FlagArg [names, action, help]];
 }
 
-#[ArgumentBranch:branch].positional[:CmdInputSource:input_src] optional: [Bool:is_optional] help: [Str:help] {
+#[ArgumentBranch:branch].positional[%CmdInputSource:input_src] optional: [Bool:is_optional] help: [Str:help] {
     [branch.positionals].append[PositionalArg [input_src, is_optional, help]];
 }
 
@@ -369,8 +369,8 @@ FlagArg?#[[FlagArg]:flags].get_flag[Str:name] {
     return null;
 }
 
-Str#[:CmdInputSource:src].get_usage spec: [CommandSpec:spec] {
-    :ConfigProp:prop = [spec.config].get_prop[src.prop_name];
+Str#[%CmdInputSource:src].get_usage spec: [CommandSpec:spec] {
+    %ConfigProp:prop = [spec.config].get_prop[src.prop_name];
     given src as IntInputSource:int_src {
         return "<{}>" % int_src.prop_name;
     } given src as MultiStringInputSource:multi_str_src {
@@ -400,8 +400,8 @@ Str#[PositionalArg:positional].get_usage spec: [CommandSpec:spec] {
     };
 }
 
-Str#[:CmdComponentAction:action].get_usage spec: [CommandSpec:spec] {
-    given action as :CmdInputSource:src {
+Str#[%CmdComponentAction:action].get_usage spec: [CommandSpec:spec] {
+    given action as %CmdInputSource:src {
         return [src].get_usage spec: [spec];
     } else {
         return "";
@@ -560,7 +560,7 @@ Str#[CommandSpec:spec].get_help_output branch: [[Str]:branch_path] {
     exit with status [0];
 }
 
-:ConfigValue#[:CmdInputSource:src].from_args[[Str]:args_stack] spec: [CommandSpec:spec] {
+%ConfigValue#[%CmdInputSource:src].from_args[[Str]:args_stack] spec: [CommandSpec:spec] {
     if !args_stack {
         [spec].error_and_exit["Not enough arguments, expected {}"
             % [src].get_usage spec: [spec]];
@@ -593,7 +593,7 @@ Str#[CommandSpec:spec].get_help_output branch: [[Str]:branch_path] {
             return StringsConfigValue [src.prop_name, result];
         };
     } given src as StringInputSource:str_src {
-        :ConfigProp:prop = [spec.config].get_prop[src.prop_name];
+        %ConfigProp:prop = [spec.config].get_prop[src.prop_name];
         Str:str = [args_stack].pop_end;
         given prop as EnumProp:enum_prop {
             for Str:member in enum_prop.members {
@@ -615,8 +615,8 @@ Str#[CommandSpec:spec].get_help_output branch: [[Str]:branch_path] {
     };
 }
 
-:ConfigValue?#[:CmdComponentAction:action].from_args[[Str]:args_stack] spec: [CommandSpec:spec] branch: [[Str]:branch_path] {
-    given action as :CmdInputSource:src {
+%ConfigValue?#[%CmdComponentAction:action].from_args[[Str]:args_stack] spec: [CommandSpec:spec] branch: [[Str]:branch_path] {
+    given action as %CmdInputSource:src {
         return [src].from_args[args_stack] spec: [spec];
     } given action as CmdApplyConstant:apply_constant {
         return apply_constant.value;
@@ -629,7 +629,7 @@ Str#[CommandSpec:spec].get_help_output branch: [[Str]:branch_path] {
 }
 
 CommandParsingResult#[CommandSpec:spec].parse_command_args[[Str]:args] {
-    ConfigValues:values = ConfigValues [[:ConfigValue] []];
+    ConfigValues:values = ConfigValues [[%ConfigValue] []];
 
     [Str]:args_stack = [Str] [];
     for Str:arg in args from 1 step -1 {
@@ -664,9 +664,9 @@ CommandParsingResult#[CommandSpec:spec].parse_command_args[[Str]:args] {
             };
             for Str:flag_name in named_flags {
                 given [active_flags].get_flag[flag_name] as FlagArg:flag {
-                    :ConfigValue?:maybe_value = [flag.action].from_args[args_stack]
+                    %ConfigValue?:maybe_value = [flag.action].from_args[args_stack]
                         spec: [spec] branch: [branch_path];    
-                    given maybe_value as :ConfigValue:value {
+                    given maybe_value as %ConfigValue:value {
                         [values].add[value];
                     };
                 } else {
