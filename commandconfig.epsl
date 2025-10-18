@@ -163,7 +163,7 @@ $JSONShape#[$ConfigProp:prop].get_shape {
     } given prop as StringsProp:strings_prop {
         return JSONListShape [JSONStrShape []];
     } else {
-        abort "Invalid config prop";
+        abort ["Invalid config prop"];
     };
 }
 
@@ -183,7 +183,7 @@ $ConfigProp#[ConfigProps:config].get_prop[Str:name] {
             return prop;
         };
     };
-    abort "No prop found with the name {}" % name;
+    abort ["No prop found with the name {}" % name];
 }
 
 #[ConfigValues:values].add[$ConfigValue:value] {
@@ -208,7 +208,7 @@ $ConfigValue#[$ConfigProp:prop].from_json[$JSON:json] {
         };
         return StringsConfigValue [prop.name, strs];
     } else {
-        abort "Invalid config prop";
+        abort ["Invalid config prop"];
     };
 }
 
@@ -257,7 +257,7 @@ $ConfigValue#[ConfigChain:chain].get_first[Str:name] {
     given [chain].try_get[name] as $ConfigValue:value {
         return value;
     } else {
-        abort "No value referring to the prop '{}' was found" % name;
+        abort ["No value referring to the prop '{}' was found" % name];
     };
 }
 
@@ -275,7 +275,7 @@ Bool#[ConfigChain:chain].get_bool[Str:name] {
     given [chain].get_first[name] as BoolConfigValue:bool_val {
         return bool_val.val;
     } else {
-        abort "'{}' does not refer to a bool prop" % name;
+        abort ["'{}' does not refer to a bool prop" % name];
     };
 }
 
@@ -283,7 +283,7 @@ R#[ConfigChain:chain].get_double[Str:name] {
     given [chain].get_first[name] as DoubleConfigValue:double_val {
         return double_val.val;
     } else {
-        abort "'{}' does not refer to a double prop" % name;
+        abort ["'{}' does not refer to a double prop" % name];
     };
 }
 
@@ -291,7 +291,7 @@ Str#[ConfigChain:chain].get_enum[Str:name] {
     given [chain].get_first[name] as EnumConfigValue:enum_val {
         return enum_val.val;
     } else {
-        abort "'{}' does not refer to a enum prop" % name;
+        abort ["'{}' does not refer to a enum prop" % name];
     };
 }
 
@@ -299,7 +299,7 @@ Z#[ConfigChain:chain].get_int[Str:name] {
     given [chain].get_first[name] as IntConfigValue:int_val {
         return int_val.val;
     } else {
-        abort "'{}' does not refer to a int prop" % name;
+        abort ["'{}' does not refer to a int prop" % name];
     };
 }
 
@@ -307,7 +307,7 @@ Str#[ConfigChain:chain].get_string[Str:name] {
     given [chain].get_first[name] as StringConfigValue:string_val {
         return string_val.val;
     } else {
-        abort "'{}' does not refer to a string prop" % name;
+        abort ["'{}' does not refer to a string prop" % name];
     };
 }
 
@@ -317,7 +317,7 @@ Str#[ConfigChain:chain].get_string[Str:name] {
         given value as StringsConfigValue:strings_val {
             [result].extend[strings_val.val];
         } else {
-            abort "'{}' refers to a non-strings prop" % name;
+            abort ["'{}' refers to a non-strings prop" % name];
         };
     };
     return result;
@@ -387,7 +387,7 @@ Str#[$CmdInputSource:src].get_usage spec: [CommandSpec:spec] {
             return "<{}>" % str_src.prop_name;
         };
     } else {
-        abort "Invalid CmdInputSource";
+        abort ["Invalid CmdInputSource"];
     };
 }
 
@@ -452,7 +452,7 @@ Str#[CommandSpec:spec].get_help_output branch: [[Str]:branch_path] {
             [positionals].extend[branch.positionals];
             [branches_usage].extend[[branch].get_usage spec: [spec]];
         } else {
-            abort "No branch named '{}' found" % branch_name;
+            abort ["No branch named '{}' found" % branch_name];
         };
     };
 
@@ -608,10 +608,10 @@ $ConfigValue#[$CmdInputSource:src].from_args[[Str]:args_stack] spec: [CommandSpe
         } given prop as StringsProp:strings_prop {
             return StringsConfigValue [src.prop_name, [Str] [str]];
         } else {
-            abort "Incorrect type of prop for StringInputSource";
+            abort ["Incorrect type of prop for StringInputSource"];
         };
     } else {
-        abort "Invalid CmdInputSource";
+        abort ["Invalid CmdInputSource"];
     };
 }
 
@@ -624,7 +624,7 @@ $ConfigValue?#[$CmdComponentAction:action].from_args[[Str]:args_stack] spec: [Co
         [spec].show_help_and_exit branch: [branch_path];
         abort;
     } else {
-        abort "Invalid CmdComponentAction";
+        abort ["Invalid CmdComponentAction"];
     };
 }
 
