@@ -675,7 +675,8 @@ CommandParsingResult#[CommandSpec:spec].parse_command_args[[Str]:args] {
                 };
             };
         } elif positional_index < [positionals].len {
-            PositionalArg:positional = positionals[positional_index++];
+            PositionalArg:positional = positionals[positional_index];
+            positional_index += 1;
             [args_stack].append[arg];
             [values].add[[positional.source].from_args[args_stack]
                 spec: [spec]];
@@ -700,7 +701,8 @@ CommandParsingResult#[CommandSpec:spec].parse_command_args[[Str]:args] {
     };
 
     while positional_index < [positionals].len {
-        PositionalArg:missing_positional = positionals[positional_index++];
+        PositionalArg:missing_positional = positionals[positional_index];
+        positional_index += 1;
         if missing_positional.is_optional {
             continue;
         };
